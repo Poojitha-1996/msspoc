@@ -21,8 +21,8 @@ jobs:
 
       - name: Run Validation Notebook in Databricks
         env:
-          DATABRICKS_HOST: "https://adb-845055060386182.azuredatabricks.net"
-          DATABRICKS_TOKEN: "dapib564846558887171ffca267f905d05c2-2"
+          DATABRICKS_HOST: "https://adb-845055060386182.2.azuredatabricks.net"
+          DATABRICKS_TOKEN: "dapic77f368dd1174a60661f559bc3f41d65-2"
         run: |
           curl -X POST "$DATABRICKS_HOST/api/2.1/jobs/run-now" \
             -H "Authorization: Bearer $DATABRICKS_TOKEN" \
