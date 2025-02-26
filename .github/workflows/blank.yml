@@ -1,0 +1,36 @@
+name: Validate Modified Table Scripts
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Get Modified Files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          json: true
+
+      - name: Run Validation Notebook in Databricks
+        env:
+          DATABRICKS_HOST: "https://adb-845055060386182.azuredatabricks.net"
+          DATABRICKS_TOKEN: "dapib564846558887171ffca267f905d05c2-2"
+        run: |
+          curl -X POST "$DATABRICKS_HOST/api/2.1/jobs/run-now" \
+            -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "notebook_path": "/Workspace/Users/saipoojitha90@gmail.com/msspoc/validate_table_descriptions",
+              "timeout_seconds": 3600,
+              "notebook_params": {
+                "modified_files": "${{ steps.changed-files.outputs.all_changed_files }}"
+              }
+            }'
