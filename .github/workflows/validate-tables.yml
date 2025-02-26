@@ -24,13 +24,20 @@ jobs:
           DATABRICKS_HOST: "https://adb-845055060386182.2.azuredatabricks.net"
           DATABRICKS_TOKEN: "dapic77f368dd1174a60661f559bc3f41d65-2"
         run: |
-          curl -X POST "$DATABRICKS_HOST/api/2.1/jobs/run-now" \
-            -H "Authorization: Bearer $DATABRICKS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "notebook_path": "/Workspace/Users/saipoojitha90@gmail.com/msspoc/validate_table_descriptions",
-              "timeout_seconds": 3600,
-              "notebook_params": {
-                "modified_files": "${{ steps.changed-files.outputs.all_changed_files }}"
+          curl -X POST "$DATABRICKS_HOST/api/2.1/jobs/runs/submit" \
+              -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "run_name": "Validate Table Descriptions",
+                "new_cluster": {
+                    "spark_version": "12.2.x-scala2.12",
+                    "node_type_id": "Standard_D3_v2",
+                    "num_workers": 1
+              },
+              "notebook_task": {
+                 "notebook_path": "/Workspace/Users/saipoojitha90@gmail.com/msspoc/validate_table_descriptions",
+                 "base_parameters": {
+                    "modified_files": "${{ steps.changed-files.outputs.all_changed_files }}"
+                  }
               }
-            }'
+          }'
