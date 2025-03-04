@@ -42,25 +42,36 @@ jobs:
                     }
                 }
               }')
+
           RUN_ID=$(echo "$RESPONSE" | jq -r '.run_id')
+          if [[ "$RUN_ID" == "null" ]]; then
+            echo "❌ Failed to submit Databricks job!"
+            exit 1
+          fi
+
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
 
       - name: Wait for Job Completion
         run: |
           while true; do
-            STATUS=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID" \
-              -H "Authorization: Bearer $DATABRICKS_TOKEN" | jq -r '.state.life_cycle_state')
-            echo "Job Status: $STATUS"
-            if [[ "$STATUS" == "TERMINATED" ]]; then
-              RESULT=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID" \
-                -H "Authorization: Bearer $DATABRICKS_TOKEN" | jq -r '.state.result_state')
+            RESPONSE=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID" \
+              -H "Authorization: Bearer $DATABRICKS_TOKEN")
+
+            STATUS=$(echo "$RESPONSE" | jq -r '.state.life_cycle_state')
+            RESULT=$(echo "$RESPONSE" | jq -r '.state.result_state')
+
+            echo "Job Status: $STATUS, Result: $RESULT"
+
+            # If the job has finished, check the result
+            if [[ "$STATUS" == "TERMINATED" || "$STATUS" == "SKIPPED" || "$STATUS" == "INTERNAL_ERROR" || "$STATUS" == "FAILED" ]]; then
               if [[ "$RESULT" == "SUCCESS" ]]; then
-                echo "Job completed successfully."
+                echo "✅ Job completed successfully."
                 exit 0
               else
-                echo "Job failed with result: $RESULT"
+                echo "❌ Job failed with result: $RESULT"
                 exit 1
               fi
             fi
+
             sleep 10
           done
