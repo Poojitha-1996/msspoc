@@ -23,7 +23,7 @@ jobs:
         id: submit-job
         env:
           DATABRICKS_HOST: "https://adb-845055060386182.2.azuredatabricks.net"
-          DATABRICKS_TOKEN: "${{ secrets.DATABRICKS_TOKEN }}"
+          DATABRICKS_TOKEN: "dapic77f368dd1174a60661f559bc3f41d65-2"
         run: |
           RESPONSE=$(curl -X POST "$DATABRICKS_HOST/api/2.1/jobs/runs/submit" \
               -H "Authorization: Bearer $DATABRICKS_TOKEN" \
@@ -49,7 +49,7 @@ jobs:
       - name: Wait for Job Completion
         env:
           DATABRICKS_HOST: "https://adb-845055060386182.2.azuredatabricks.net"
-          DATABRICKS_TOKEN: "${{ secrets.DATABRICKS_TOKEN }}"
+          DATABRICKS_TOKEN: "dapic77f368dd1174a60661f559bc3f41d65-2"
           RUN_ID: ${{ env.RUN_ID }}
         run: |
           while true; do
