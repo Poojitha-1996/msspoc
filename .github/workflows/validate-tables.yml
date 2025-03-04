@@ -20,11 +20,12 @@ jobs:
           json: true
 
       - name: Run Validation Notebook in Databricks
+        id: submit-job
         env:
           DATABRICKS_HOST: "https://adb-845055060386182.2.azuredatabricks.net"
           DATABRICKS_TOKEN: "dapic77f368dd1174a60661f559bc3f41d65-2"
         run: |
-          curl -X POST "$DATABRICKS_HOST/api/2.1/jobs/runs/submit" \
+          RESPONSE=$(curl -X POST "$DATABRICKS_HOST/api/2.1/jobs/runs/submit" \
               -H "Authorization: Bearer $DATABRICKS_TOKEN" \
               -H "Content-Type: application/json" \
               -d '{
@@ -33,11 +34,33 @@ jobs:
                     "spark_version": "12.2.x-scala2.12",
                     "node_type_id": "Standard_D3_v2",
                     "num_workers": 1
-              },
-              "notebook_task": {
-                 "notebook_path": "/Workspace/Users/saipoojitha90@gmail.com/msspoc/validate_table_descriptions",
-                 "base_parameters": {
-                    "modified_files": "${{ steps.changed-files.outputs.all_changed_files }}"
-                  }
-              }
-          }'
+                },
+                "notebook_task": {
+                   "notebook_path": "/Workspace/Users/saipoojitha90@gmail.com/msspoc/validate_table_descriptions",
+                   "base_parameters": {
+                      "modified_files": "${{ steps.changed-files.outputs.all_changed_files }}"
+                    }
+                }
+              }')
+          RUN_ID=$(echo "$RESPONSE" | jq -r '.run_id')
+          echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+
+      - name: Wait for Job Completion
+        run: |
+          while true; do
+            STATUS=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID" \
+              -H "Authorization: Bearer $DATABRICKS_TOKEN" | jq -r '.state.life_cycle_state')
+            echo "Job Status: $STATUS"
+            if [[ "$STATUS" == "TERMINATED" ]]; then
+              RESULT=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID" \
+                -H "Authorization: Bearer $DATABRICKS_TOKEN" | jq -r '.state.result_state')
+              if [[ "$RESULT" == "SUCCESS" ]]; then
+                echo "Job completed successfully."
+                exit 0
+              else
+                echo "Job failed with result: $RESULT"
+                exit 1
+              fi
+            fi
+            sleep 10
+          done
