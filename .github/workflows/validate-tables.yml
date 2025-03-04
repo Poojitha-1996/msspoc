@@ -23,7 +23,7 @@ jobs:
         id: submit-job
         env:
           DATABRICKS_HOST: "https://adb-845055060386182.2.azuredatabricks.net"
-          DATABRICKS_TOKEN: "dapic77f368dd1174a60661f559bc3f41d65-2"
+          DATABRICKS_TOKEN: "${{ secrets.DATABRICKS_TOKEN }}"
         run: |
           RESPONSE=$(curl -X POST "$DATABRICKS_HOST/api/2.1/jobs/runs/submit" \
               -H "Authorization: Bearer $DATABRICKS_TOKEN" \
@@ -44,34 +44,44 @@ jobs:
               }')
 
           RUN_ID=$(echo "$RESPONSE" | jq -r '.run_id')
-          if [[ "$RUN_ID" == "null" ]]; then
-            echo "❌ Failed to submit Databricks job!"
-            exit 1
-          fi
-
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
 
       - name: Wait for Job Completion
+        env:
+          DATABRICKS_HOST: "https://adb-845055060386182.2.azuredatabricks.net"
+          DATABRICKS_TOKEN: "${{ secrets.DATABRICKS_TOKEN }}"
+          RUN_ID: ${{ env.RUN_ID }}
         run: |
           while true; do
-            RESPONSE=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID" \
-              -H "Authorization: Bearer $DATABRICKS_TOKEN")
+              RESPONSE=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID" \
+                -H "Authorization: Bearer $DATABRICKS_TOKEN")
 
-            STATUS=$(echo "$RESPONSE" | jq -r '.state.life_cycle_state')
-            RESULT=$(echo "$RESPONSE" | jq -r '.state.result_state')
+              STATUS=$(echo "$RESPONSE" | jq -r '.state.life_cycle_state')
+              RESULT=$(echo "$RESPONSE" | jq -r '.state.result_state')
 
-            echo "Job Status: $STATUS, Result: $RESULT"
+              echo "Job Status: $STATUS, Result: $RESULT"
 
-            # If the job has finished, check the result
-            if [[ "$STATUS" == "TERMINATED" || "$STATUS" == "SKIPPED" || "$STATUS" == "INTERNAL_ERROR" || "$STATUS" == "FAILED" ]]; then
-              if [[ "$RESULT" == "SUCCESS" ]]; then
-                echo "✅ Job completed successfully."
-                exit 0
-              else
-                echo "❌ Job failed with result: $RESULT"
-                exit 1
+              # Keep waiting if the job is still pending or running
+              if [[ "$STATUS" == "PENDING" || "$STATUS" == "RUNNING" || "$STATUS" == "QUEUED" ]]; then
+                  echo "⏳ Job is still in progress... Waiting 10 seconds."
+                  sleep 10
+                  continue
               fi
-            fi
 
-            sleep 10
+              # If the job has finished, check the result
+              if [[ "$STATUS" == "TERMINATED" ]]; then
+                  if [[ "$RESULT" == "SUCCESS" ]]; then
+                      echo "✅ Job completed successfully."
+                      exit 0
+                  else
+                      echo "❌ Job failed with result: $RESULT"
+                      exit 1
+                  fi
+              elif [[ "$STATUS" == "SKIPPED" || "$STATUS" == "INTERNAL_ERROR" ]]; then
+                  echo "❌ Job failed due to Databricks internal error or was skipped."
+                  exit 1
+              fi
+
+              echo "⚠️ Unexpected status: $STATUS. Exiting with error."
+              exit 2
           done
