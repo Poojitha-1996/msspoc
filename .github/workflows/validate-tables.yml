@@ -91,7 +91,7 @@ jobs:
               exit 2
           done
 
-      - name: Request Manual Approval to Pass/Fail Workflow (Only if Job Failed)
+      - name: Manual Approval to Pass/Fail Workflow (Only if Job Failed)
         if: failure()  # This step is triggered only if the job failed
         uses: peter-evans/manual-approval@v2
         with:
@@ -102,13 +102,13 @@ jobs:
             Do you approve the results? (Y/N)
 
       - name: Fail Workflow if User Chooses 'N'
-        if: failure() && inputs.approve_message != 'Y'
+        if: ${{ steps.approve-approval.outputs.approve_message != 'Y' }}
         run: |
           echo "❌ Workflow failed due to user input."
           exit 1
 
       - name: Pass Workflow if User Chooses 'Y'
-        if: success() && inputs.approve_message == 'Y'
+        if: ${{ steps.approve-approval.outputs.approve_message == 'Y' }}
         run: |
           echo "✅ Workflow succeeded."
           exit 0
