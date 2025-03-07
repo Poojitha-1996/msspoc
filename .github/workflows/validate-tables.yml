@@ -42,11 +42,10 @@ jobs:
                     }
                 }
               }')
-
           RUN_ID=$(echo "$RESPONSE" | jq -r '.run_id')
           echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
 
-      - name: Wait for Job Completion
+      - name: Wait for Job Completion and Display Logs
         env:
           DATABRICKS_HOST: "https://adb-845055060386182.2.azuredatabricks.net"
           DATABRICKS_TOKEN: "dapic77f368dd1174a60661f559bc3f41d65-2"
@@ -55,11 +54,20 @@ jobs:
           while true; do
               RESPONSE=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get?run_id=$RUN_ID" \
                 -H "Authorization: Bearer $DATABRICKS_TOKEN")
-
               STATUS=$(echo "$RESPONSE" | jq -r '.state.life_cycle_state')
               RESULT=$(echo "$RESPONSE" | jq -r '.state.result_state')
-
               echo "Job Status: $STATUS, Result: $RESULT"
+
+              # Fetch job logs while job is running and display comments
+              if [[ "$STATUS" == "RUNNING" || "$STATUS" == "PENDING" || "$STATUS" == "QUEUED" ]]; then
+                  LOG_RESPONSE=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get-output?run_id=$RUN_ID" \
+                      -H "Authorization: Bearer $DATABRICKS_TOKEN")
+                  LOG=$(echo "$LOG_RESPONSE" | jq -r '.notebook_output.result')
+                  
+                  if [[ -n "$LOG" ]]; then
+                      echo "🔹 $LOG"  # Display comments or logs as they become available
+                  fi
+              fi
 
               # Keep waiting if the job is still pending or running
               if [[ "$STATUS" == "PENDING" || "$STATUS" == "RUNNING" || "$STATUS" == "QUEUED" ]]; then
@@ -72,16 +80,38 @@ jobs:
               if [[ "$STATUS" == "TERMINATED" ]]; then
                   if [[ "$RESULT" == "SUCCESS" ]]; then
                       echo "✅ Job completed successfully."
-                      exit 0
+                      exit 0  # Succeed the workflow if the job is successful
                   else
                       echo "❌ Job failed with result: $RESULT"
-                      exit 1
+                      break  # Stop the loop and proceed to manual approval step if failed
                   fi
               elif [[ "$STATUS" == "SKIPPED" || "$STATUS" == "INTERNAL_ERROR" ]]; then
                   echo "❌ Job failed due to Databricks internal error or was skipped."
-                  exit 1
+                  break  # Stop the loop and proceed to manual approval step if failed
               fi
 
               echo "⚠️ Unexpected status: $STATUS. Exiting with error."
               exit 2
           done
+
+      - name: Request Manual Approval to Pass/Fail Workflow (Only if Job Failed)
+        if: failure()  # This step is triggered only if the job failed
+        uses: peter-evans/manual-approval@v2
+        with:
+          approve_message: |
+            The validation job has failed. Please review the logs below and decide whether the workflow should pass or fail.
+            Validation Logs:
+            - ${{ steps.submit-job.outputs.validation_logs }}
+            Do you approve the results? (Y/N)
+
+      - name: Fail Workflow if User Chooses 'N'
+        if: failure() && inputs.approve_message != 'Y'
+        run: |
+          echo "❌ Workflow failed due to user input."
+          exit 1
+
+      - name: Pass Workflow if User Chooses 'Y'
+        if: success() && inputs.approve_message == 'Y'
+        run: |
+          echo "✅ Workflow succeeded."
+          exit 0
