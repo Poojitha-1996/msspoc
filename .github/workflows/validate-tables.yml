@@ -57,25 +57,23 @@ jobs:
               STATUS=$(echo "$RESPONSE" | jq -r '.state.life_cycle_state')
               RESULT=$(echo "$RESPONSE" | jq -r '.state.result_state')
               echo "Job Status: $STATUS, Result: $RESULT"
-
               # Fetch job logs while job is running and display comments
               if [[ "$STATUS" == "RUNNING" || "$STATUS" == "PENDING" || "$STATUS" == "QUEUED" ]]; then
                   LOG_RESPONSE=$(curl -s -X GET "$DATABRICKS_HOST/api/2.1/jobs/runs/get-output?run_id=$RUN_ID" \
                       -H "Authorization: Bearer $DATABRICKS_TOKEN")
                   LOG=$(echo "$LOG_RESPONSE" | jq -r '.notebook_output.result')
                   
+
                   if [[ -n "$LOG" ]]; then
                       echo "🔹 $LOG"  # Display comments or logs as they become available
                   fi
               fi
-
               # Keep waiting if the job is still pending or running
               if [[ "$STATUS" == "PENDING" || "$STATUS" == "RUNNING" || "$STATUS" == "QUEUED" ]]; then
                   echo "⏳ Job is still in progress... Waiting 10 seconds."
                   sleep 10
                   continue
               fi
-
               # If the job has finished, check the result
               if [[ "$STATUS" == "TERMINATED" ]]; then
                   if [[ "$RESULT" == "SUCCESS" ]]; then
@@ -89,7 +87,6 @@ jobs:
                   echo "❌ Job failed due to Databricks internal error or was skipped."
                   break  # Stop the loop and proceed to manual approval step if failed
               fi
-
               echo "⚠️ Unexpected status: $STATUS. Exiting with error."
               exit 2
           done
