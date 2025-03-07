@@ -91,7 +91,7 @@ jobs:
 
       - name: Request Manual Approval to Pass/Fail Workflow (Only if Job Failed)
         if: failure()  # This step is triggered only if the job failed
-        uses: peter-evans/manual-approval@v2
+        uses: peter-evans/manual-approval@v1  # Using the latest stable version
         with:
           approve_message: |
             The validation job has failed. Please review the logs below and decide whether the workflow should pass or fail.
